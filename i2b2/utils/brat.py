@@ -25,7 +25,13 @@ colors_intense = ["#d040bb", "#52c539", "#bb46e0", "#8bba3c", "#5533c0", "#54be6
                   "#6b5121", "#d2968e", "#5f3629", "#82764b", "#b7645a"]
 
 
-def generate_brat_conf_files(input_dir):
+def generate_brat_conf_files(input_dir: str) -> None:
+    """
+    Generate brat configuration files for a given directory
+
+    Args:
+        input_dir (str): directory with brat annotation files
+    """
 
     regex_ann_filename = re.compile(r'.*\.ann')
     regex_entity = re.compile(r"T(\d+)\t([^\s]*)\s(\d+\s\d+;?)+\t([^\t]*)")
@@ -33,7 +39,7 @@ def generate_brat_conf_files(input_dir):
     regex_relation = re.compile(r'^R(\d+)\t([^\s]+)\sArg1:T(\d+)\sArg2:T(\d+)')
 
     entities_list = set()
-    attributes_list = {}
+    attributes_list = dict()
     relations_list = set()
 
     for root, dirs, files in os.walk(os.path.abspath(input_dir)):
@@ -60,7 +66,16 @@ def generate_brat_conf_files(input_dir):
     write_confs(entities_list, attributes_list, relations_list, input_dir)
 
 
-def write_confs(entities_list, attributes_list, relations_list, input_dir, convert_names=False):
+def write_confs(entities_list: set, attributes_list: dict, relations_list: set, input_dir: str) -> None:
+    """
+    Writes brat configuration files
+
+    Args:
+        entities_list (set): corpus entities
+        attributes_list (dict): corpus attributes
+        relations_list (set): corpus relations
+        input_dir (set): corpus path
+    """
 
     with open(os.path.join(os.path.abspath(input_dir), "annotation.conf"), "w", encoding="UTF-8") as ann_conf:
 
@@ -99,16 +114,10 @@ def write_confs(entities_list, attributes_list, relations_list, input_dir, conve
         random.shuffle(colors_relations)
 
         for entity in entities_list:
-            if convert_names:
-                visu_conf.write("{0} | {1}\n".format(entity, _decode_string(entity)))
-            else:
-                visu_conf.write("{0} | {1}\n".format(entity, entity))
+            visu_conf.write("{0} | {1}\n".format(entity, entity))
 
         for relation in relations_list:
-            if convert_names:
-                visu_conf.write("{0} | {1}\n".format(relation, _decode_string(relation)))
-            else:
-                visu_conf.write("{0} | {1}\n".format(relation, relation))
+            visu_conf.write("{0} | {1}\n".format(relation, relation))
 
         visu_conf.write("[drawing]\n")
         for idx, entity in enumerate(entities_list):
@@ -132,28 +141,15 @@ def write_confs(entities_list, attributes_list, relations_list, input_dir, conve
             ))
 
 
-def _decode_string(string):
+def get_last_ids(file_path: str) -> tuple:
+    """
+    Get last IDs of entities, relations, attributes and annaotions for a given brat document
+    Args:
+        file_path (str): brat annotation filepath
 
-    converted_string = ""
-    current = 0
-
-    for match in re.finditer('--(\d+)--', string):
-
-        begin = match.start()
-
-        for i, char in enumerate(string[current:begin]):
-            converted_string += char
-
-        converted_string += chr(int(match.group(1)))
-        current = match.end()
-
-    if current != len(string):
-        converted_string += string[current:]
-
-    return converted_string
-
-
-def get_last_ids(file_path):
+    Returns:
+        (int, int, int, int): last entity ID, last attribute ID, last relation ID, last annotation ID
+    """
 
     regex_entity = re.compile(r'^T(\d+)\t([^\s]+)\s(.*)\t(.*)')
     regex_relation = re.compile(r'^R(\d+)\t([^\s]+)\sArg1:T(\d+)\sArg2:T(\d+)')
@@ -192,11 +188,15 @@ def get_last_ids(file_path):
     return last_entity_id, last_att_id, last_relation_id, last_ann_id
 
 
-def parse_ann_file(ann_filename):
+def parse_ann_file(ann_filename: str) -> tuple:
     """
     Parse a brat .ann file and return a dictionary of entities and a list of relations.
-    :param ann_filename: brat .ann file to parse
-    :return: entities (dict), relations (list)
+
+    Args:
+        ann_filename (str): brat annotation filepath
+
+    Returns:
+        (dict, list): document entities and document relations
     """
 
     regex_entity = re.compile("^T(\d+)\t([^\s]+)\s([^\t]+)\t([^\t]*)$")
