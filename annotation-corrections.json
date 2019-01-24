@@ -1,0 +1,18 @@
+{
+  "clinical-32": {
+    "chains": {
+      "38": "c=\"naa naricha early , m.d.\" 140:1 140:5||c=\"naa naricha early , m.d.\" 148:0 148:4||t=\"coref person\"\n"
+    },
+    "concepts": {
+      "12": "c=\"naa naricha early , m.d.\" 140:1 140:5||t=\"person\"\n"
+    }
+  },
+  "clinical-52": {
+    "chains": {
+      "2": "c=\"niacin\" 35:2 35:2||c=\"b-3\" 36:0 36:0||c=\"niacin\" 41:2 41:2||c=\"vit. b-3\" 41:4 41:5||t=\"coref treatment\"\n"
+    },
+    "concepts": {
+      "48": "c=\"vit. b-3\" 41:4 41:5||t=\"treatment\"\n"
+    }
+  }
+}
