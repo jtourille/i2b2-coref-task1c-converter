@@ -4,8 +4,12 @@ import os
 def ensure_dir(directory: str) -> None:
     """
     Creates a directory
+
     Args:
-        directory: path to create
+        directory (str): path to create
+
+    Returns:
+        None
     """
 
     try:
@@ -22,8 +26,8 @@ def get_other_extension(filename: str, target_extension: str) -> str:
     Returns the filename given as argument with another extension (given as argument)
 
     Args:
-        filename: filename to modify
-        target_extension: new extension
+        filename (str): filename to modify
+        target_extension (str): new extension
 
     Returns:
         str: filename with new extension
@@ -33,3 +37,21 @@ def get_other_extension(filename: str, target_extension: str) -> str:
     basename, extension = os.path.splitext(filename)
 
     return "{0}.{1}".format(basename, target_extension)
+
+
+def remove_abs(path: str) -> str:
+    """
+    Remove leading slash from path
+
+    Args:
+        path (str): path from which the leading slash must be removed
+
+    Returns:
+        str: path without leading slash
+
+    """
+
+    if os.path.isabs(path):
+        return path.lstrip("/")
+    else:
+        return path

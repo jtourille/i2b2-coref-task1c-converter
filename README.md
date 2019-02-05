@@ -37,7 +37,17 @@ $ python main.py CREATE-BRAT \
   [--overwrite]
 ```
 
-## 3. Other
+## 3. CoNLL files creation
+
+Creation of a CoNLL version of the corpus.
+
+```bash
+$ python main.py CREATE-CONLL \
+  --input-dir /path/to/data-preparation \
+  [--overwrite]
+``` 
+
+## 4. Other
 
 ### Mapping File Creation
 
