@@ -74,3 +74,70 @@ $ python main.py CREATE-MAPPING \
   --target-file char_mapping.json\
   [--overwrite]
 ```
+
+### Reverse Transformation
+
+To check the integrity of the transformation i2b2 -> conll, we can perform the reverse transformation conll -> i2b2 and
+measure the similarity by applying the official evaluation script provided during the i2b2 shared task.
+
+* Convert the CoNLL files to i2b2 format. All entity will be marked as `procedure` and all chains will be marked as 
+`coref_procedure`.
+
+```bash
+$ python main.py CONLL-TO-I2B2 \
+  --input-dir /path/to/data-preparation/conll/task1c/train \
+  --output-dir /path/to/data-preparation/reverse-test/task1c/train \
+  [--overwrite]
+  
+$ python main.py CONLL-TO-I2B2 \
+  --input-dir /path/to/data-preparation/conll/task1c/test \
+  --output-dir /path/to/data-preparation/reverse-test/task1c/test \
+  [--overwrite]
+```
+
+* Entity types have been lost during the conversion from i2b2 to CoNLL. The official evaluation script is sensitive to
+the types, so we have to get rid of the entity types in the gold standard. The following command will replace all types
+by the type `procedure`. The files will be created at the location 
+`/path/to/data-preparation/gold-standard-flatten-replace`.
+
+```bash
+$ python main.py REMOVE-TYPES \
+  --input-dir /path/to/data-preparation/ \
+  [--overwrite] 
+```
+
+* Launch the official evaluation script with on the converted annotations. First clone or download the 
+[script](https://github.com/jtourille/i2b2-coreference-evaluation).
+
+```bash
+$ git clone git@github.com:jtourille/i2b2-coreference-evaluation.git
+```
+
+Prepare a Python 2 environment and install the required packages.
+
+```bash
+$ conda create -n i2b2-eval python=2
+$ conda activate i2b2-eval
+$ pip install pp
+$ pip install munkres
+```
+
+Move to the evaluation script directory and launch the evaluations. Log files are located in the `evaluation` directory
+of this repository.
+
+```bash
+$ python endToEndCoreferenceEvaluation.py \
+  /path/to/data-preparation/gold-standard-flatten-replace/task1c/train/chains \
+  /path/to/data-preparation/reverse-test/task1c/train/chains \
+  /path/to/data-preparation/gold-standard-flatten-replace/task1c/train/concepts \
+  /path/to/data-preparation/reverse-test/task1c/train/concepts \
+  .
+
+$ python endToEndCoreferenceEvaluation.py \
+  /path/to/data-preparation/gold-standard-flatten-replace/task1c/test/chains \
+  /path/to/data-preparation/reverse-test/task1c/test/chains \
+  /path/to/data-preparation/gold-standard-flatten-replace/task1c/test/concepts \
+  /path/to/data-preparation/reverse-test/task1c/test/concepts \
+  .
+```
+

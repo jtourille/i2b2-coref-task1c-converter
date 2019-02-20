@@ -8,9 +8,11 @@ import time
 from datetime import timedelta
 
 from i2b2.brat import generate_brat_files
+from i2b2.conll import conll_to_i2b2
 from i2b2.conll import create_conll_files
 from i2b2.offset import create_offset_mapping
 from i2b2.prepare import prepare_data_task1c
+from i2b2.utils.misc import replace_semantic_types
 from i2b2.utils.path import ensure_dir
 
 if __name__ == "__main__":
@@ -21,6 +23,12 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers(title="Sub-commands", description="Valid sub-commands",
                                        help="Valid sub-commands", dest="subparser_name")
+
+    parser_conll_to_i2b2 = subparsers.add_parser('CONLL-TO-I2B2', help="Convert CoNLL files to i2b2 format")
+    parser_conll_to_i2b2.add_argument("--input-dir", help="", dest="input_dir", type=str, required=True)
+    parser_conll_to_i2b2.add_argument("--output-dir", help="", dest="output_dir", type=str, required=True)
+    parser_conll_to_i2b2.add_argument("--overwrite", help="Overwrite existing documents", dest="overwrite",
+                                      action="store_true")
 
     parser_brat = subparsers.add_parser("CREATE-BRAT", help="Create brat version of the corpus")
     parser_brat.add_argument("--input-dir", help="Directory where data is stored (step 1)", dest="input_dir",
@@ -62,6 +70,12 @@ if __name__ == "__main__":
     parser_regroup.add_argument("--overwrite", help="Overwrite existing documents", dest="overwrite",
                                 action="store_true")
 
+    parser_remove = subparsers.add_parser('REMOVE-TYPES', help="Change all semantic types to procedure")
+    parser_remove.add_argument("--input-dir", help="Path where prepared data is stored", dest="input_dir",
+                               type=str, required=True)
+    parser_remove.add_argument("--overwrite", help="Overwrite existing documents", dest="overwrite",
+                               action="store_true")
+
     args = parser.parse_args()
 
     log = logging.getLogger('')
@@ -74,7 +88,31 @@ if __name__ == "__main__":
     ch.setFormatter(log_format)
     log.addHandler(ch)
 
-    if args.subparser_name == "CREATE-BRAT":
+    if args.subparser_name == "CONLL-TO-I2B2":
+
+        if not os.path.isdir(args.input_dir):
+            raise NotADirectoryError("The input path does not exist: {}".format(
+                os.path.abspath(args.input_dir)
+            ))
+
+        if not args.overwrite:
+            if os.path.isdir(args.output_dir):
+                logging.info("The output path already exists, use the appropriate launcher flag to overwrite")
+                raise IsADirectoryError("The output directory already exists: {}".format(
+                    args.output_dir
+                ))
+
+        if os.path.isdir(os.path.abspath(args.output_dir)):
+            shutil.rmtree(os.path.abspath(args.output_dir))
+
+        ensure_dir(args.output_dir)
+
+        conll_to_i2b2(
+            os.path.abspath(args.input_dir),
+            os.path.abspath(args.output_dir)
+        )
+
+    elif args.subparser_name == "CREATE-BRAT":
 
         if not os.path.isfile(os.path.abspath(args.mapping_file)):
             raise NotADirectoryError("The mapping file does not exist: {}".format(
@@ -226,6 +264,29 @@ if __name__ == "__main__":
 
                     shutil.copy(source_txt_filepath, target_modified_dir)
                     shutil.copy(source_txt_filepath, target_untouched_dir)
+
+    elif args.subparser_name == "REMOVE-TYPES":
+
+        input_dir = os.path.join(os.path.abspath(args.input_dir), "gold-standard-flatten")
+        if not os.path.isdir(input_dir):
+            raise NotADirectoryError("The input directory does not exists: {}".format(
+                input_dir
+            ))
+
+        output_dir = os.path.join(os.path.abspath(args.input_dir), "gold-standard-flatten-replace")
+        if not args.overwrite:
+            if os.path.isdir(output_dir):
+                logging.info("The output directory already exists, use the appropriate launcher flag to overwrite")
+                raise IsADirectoryError("The output directory already exists: {}".format(
+                    output_dir
+                ))
+
+        if os.path.isdir(os.path.abspath(output_dir)):
+            shutil.rmtree(os.path.abspath(output_dir))
+
+        ensure_dir(output_dir)
+
+        replace_semantic_types(input_dir, output_dir)
 
     end = time.time()
 

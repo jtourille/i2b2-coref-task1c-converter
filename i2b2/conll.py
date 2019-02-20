@@ -1,5 +1,7 @@
 import os
 import re
+from collections import defaultdict
+from typing import DefaultDict, List, Set, Tuple
 
 import networkx as nx
 
@@ -289,3 +291,322 @@ def extract_chains_with_networkx(relations: dict) -> set:
     connected_components = nx.connected_components(graph)
 
     return connected_components
+
+
+def conll_to_i2b2(input_conll_dir, output_i2b2_dir):
+    """
+    Convert a set of CoNLL document into i2b2 format.
+    This is largely inspired by the allennlp implementation.
+    :param input_conll_dir: path where conll documents are stored
+    :param output_i2b2_dir: path where i2b2 documents will be stored
+    :return: None
+    """
+
+    all_files: List[CoNLLFile] = list()
+
+    for root, dirs, files in os.walk(os.path.abspath(input_conll_dir)):
+        for filename in files:
+            if re.match("^.*\.conll$", filename):
+                source_conll_file = os.path.join(root, filename)
+
+                conll_file = CoNLLFile(conll_file_path=source_conll_file)
+                all_files.append(conll_file)
+
+    target_concept_dir = os.path.join(output_i2b2_dir, "concepts")
+    target_chain_dir = os.path.join(output_i2b2_dir, "chains")
+
+    ensure_dir(target_concept_dir)
+    ensure_dir(target_chain_dir)
+
+    for conll_file in all_files:
+        for document_id, document in conll_file.all_documents.items():
+            concepts = document.get_document_concepts_i2b2_format()
+            chains = document.get_document_chains_i2b2_format()
+
+            concept_file_path = os.path.join(target_concept_dir, "{}.con".format(document_id))
+            chain_file_path = os.path.join(target_chain_dir, "{}.chains".format(document_id))
+
+            with open(concept_file_path, "w", encoding="UTF-8") as output_file:
+                for con_str, con_begin, con_end, con_type in concepts:
+                    line_str = "c=\"{}\" {}:{} {}:{}||t=\"{}\"\n".format(
+                        con_str,
+                        con_begin[0],
+                        con_begin[1],
+                        con_end[0],
+                        con_end[1],
+                        con_type
+                    )
+
+                    output_file.write(line_str)
+
+            with open(chain_file_path, "w", encoding="UTF-8") as output_file:
+                for chain_id, concept_list in chains.items():
+                    all_concept_str = list()
+                    for con_str, con_begin, con_end, con_type in sorted(concept_list, key=lambda x: (x[1][0], x[1][1])):
+                        final_str = "c=\"{}\" {}:{} {}:{}".format(
+                            con_str,
+                            con_begin[0],
+                            con_begin[1],
+                            con_end[0],
+                            con_end[1],
+                        )
+                        all_concept_str.append(final_str)
+
+                    output_file.write("{}||t=\"coref procedure\"\n".format(
+                        "||".join(all_concept_str)
+                    ))
+
+    return all_files
+
+
+class CoNLLFile:
+    """
+    A CoNLL file may contain several documents
+    """
+
+    def __init__(self, conll_file_path=None):
+
+        self.conll_file_path = conll_file_path
+        self.all_documents = self.process_file()
+
+    def process_file(self):
+        """
+        Main method of the class. Process the file and return a dict of Document objects
+        :return: dict of Document objects
+        """
+
+        all_documents = dict()
+
+        with open(self.conll_file_path, "r", encoding="UTF-8") as input_file:
+            conll_rows = list()
+            document_id = str()
+            document = None
+
+            for line in input_file:
+                line = line.strip()
+
+                if line.startswith('#begin document'):
+                    match = re.match('#begin document \((.*)\);', line)
+                    document_id = match.group(1)
+                    document = Document(document_id)
+
+                elif line != '' and not line.startswith('#'):
+                    # Non-empty line. Collect the annotation.
+                    conll_rows.append(line)
+
+                else:
+                    if conll_rows:
+                        document.sentences.append(self._conll_rows_to_sentence(conll_rows))
+                        conll_rows = list()
+
+                if line.startswith("#end document"):
+                    # document.sentences.append(self._conll_rows_to_sentence(conll_rows))
+                    all_documents[document_id] = document
+                    document_id = str()
+                    document = None
+
+            if conll_rows:
+                # Collect any stragglers or files which might not
+                # have the '#end document' format for the end of the file.
+                document.sentences.append(self._conll_rows_to_sentence(conll_rows))
+
+        return all_documents
+
+    def _conll_rows_to_sentence(self, conll_rows):
+        """
+        Convert a sentence extracted from the CoNLL file to a Sentence object
+        :param conll_rows: rows extracted from the file
+        :return: a Sentence object
+        """
+
+        # Cluster id -> List of (start_index, end_index) spans.
+        clusters: DefaultDict[int, List[Tuple[int, int]]] = defaultdict(list)
+        # Cluster id -> List of start_indices which are open for this id.
+        coref_stacks: DefaultDict[int, List[int]] = defaultdict(list)
+
+        sentences: List[int] = list()
+        words: List[str] = list()
+        begins: List[int] = list()
+        ends: List[int] = list()
+        i2b2_mappings: List[str] = list()
+
+        for index, row in enumerate(conll_rows):
+            conll_components = row.split()
+
+            t_sent_id = conll_components[0]
+            t_word = conll_components[1]
+            t_begin = conll_components[2]
+            t_end = conll_components[3]
+
+            i2b2 = conll_components[4].split('|')
+            t_i2b2_mapping = list()
+
+            for chunk in i2b2:
+                t_i2b2_mapping.append((
+                    int(chunk.split(":")[0]),
+                    int(chunk.split(":")[1])
+                ))
+
+            try:
+                self._process_coref_span_annotations_for_word(conll_components[-1],
+                                                              index,
+                                                              clusters,
+                                                              coref_stacks)
+            except:
+                for i in conll_rows:
+                    print(i)
+                raise
+
+            sentences.append(int(t_sent_id))
+            words.append(t_word)
+            begins.append(int(t_begin))
+            ends.append(int(t_end))
+            i2b2_mappings.append(t_i2b2_mapping)
+
+        coref_span_tuples: Set[TypedSpan] = {(cluster_id, span)
+                                             for cluster_id, span_list in clusters.items()
+                                             for span in span_list}
+
+        return Sentence(sentences, words, begins, ends, i2b2_mappings, coref_span_tuples)
+
+    @staticmethod
+    def _process_coref_span_annotations_for_word(label: str,
+                                                 word_index: int,
+                                                 clusters: DefaultDict[int, List[Tuple[int, int]]],
+                                                 coref_stacks: DefaultDict[int, List[int]]) -> None:
+        """
+        For a given coref label, add it to a currently open span(s), complete a span(s) or
+        ignore it, if it is outside of all spans. This method mutates the clusters and coref_stacks
+        dictionaries.
+
+        Parameters
+        ----------
+        label : ``str``
+            The coref label for this word.
+        word_index : ``int``
+            The word index into the sentence.
+        clusters : ``DefaultDict[int, List[Tuple[int, int]]]``
+            A dictionary mapping cluster ids to lists of inclusive spans into the
+            sentence.
+        coref_stacks: ``DefaultDict[int, List[int]]``
+            Stacks for each cluster id to hold the start indices of active spans (spans
+            which we are inside of when processing a given word). Spans with the same id
+            can be nested, which is why we collect these opening spans on a stack, e.g:
+
+            [Greg, the baker who referred to [himself]_ID1 as 'the bread man']_ID1
+        """
+        if label != "-":
+            for segment in label.split("|"):
+                # The conll representation of coref spans allows spans to
+                # overlap. If spans end or begin at the same word, they are
+                # separated by a "|".
+                if segment[0] == "(":
+                    # The span begins at this word.
+                    if segment[-1] == ")":
+                        # The span begins and ends at this word (single word span).
+                        cluster_id = int(segment[1:-1])
+                        clusters[cluster_id].append((word_index, word_index))
+                    else:
+                        # The span is starting, so we record the index of the word.
+                        cluster_id = int(segment[1:])
+                        coref_stacks[cluster_id].append(word_index)
+                else:
+                    # The span for this id is ending, but didn't start at this word.
+                    # Retrieve the start index from the document state and
+                    # add the span to the clusters for this id.
+                    cluster_id = int(segment[:-1])
+                    start = coref_stacks[cluster_id].pop()
+                    clusters[cluster_id].append((start, word_index))
+
+
+TypedSpan = Tuple[int, Tuple[int, int]]
+
+
+class Document:
+    """
+    A coreference document
+    """
+
+    def __init__(self, document_id):
+
+        self.document_id = document_id
+        self.sentences = list()
+
+    def get_document_concepts_i2b2_format(self):
+        """
+        Get i2b2 formatted concepts from the CoNLL format
+        :return: list of i2b2 formatted concepts
+        """
+
+        all_concepts = list()
+
+        for sentence in self.sentences:
+            for chain_id, (begin, end) in sentence.coref_spans:
+                concept_str = " ".join([sentence.words[idx] for idx in range(begin, end + 1)])
+                concept_begin = sorted(sentence.i2b2_mapping[begin], key=lambda x: (x[0], x[1]))[0]
+                concept_end = sorted(sentence.i2b2_mapping[end], key=lambda x: (x[0], x[1]), reverse=True)[0]
+                concept_type = "procedure"
+
+                all_concepts.append((
+                    concept_str,
+                    concept_begin,
+                    concept_end,
+                    concept_type
+                ))
+
+        return all_concepts
+
+    # def get_document_concepts(self):
+    #
+    #     all_concepts = list()
+    #
+    #     for sentence in self.sentences:
+    #         for chain_id, (begin, end) in sentence.coref_spans:
+    #             all_concepts.append((begin, end))
+    #
+    #     return all_concepts
+
+    def get_document_chains_i2b2_format(self):
+        """
+        Get i2b2 formatted chains from the CoNLL format
+        :return: list of i2b2 formatted chains
+        """
+
+        all_chains = defaultdict(list)
+
+        for sentence in self.sentences:
+            for chain_id, (begin, end) in sentence.coref_spans:
+                concept_str = " ".join([sentence.words[idx] for idx in range(begin, end + 1)])
+                concept_begin = sorted(sentence.i2b2_mapping[begin], key=lambda x: (x[0], x[1]))[0]
+                concept_end = sorted(sentence.i2b2_mapping[end], key=lambda x: (x[0], x[1]), reverse=True)[0]
+                concept_type = "procedure"
+
+                all_chains[chain_id].append((
+                    concept_str,
+                    concept_begin,
+                    concept_end,
+                    concept_type
+                ))
+
+        return all_chains
+
+
+class Sentence:
+    """
+    CoNLL sentence
+    """
+
+    def __init__(self,
+                 sent_ids: List[int],
+                 words: List[str],
+                 begin: List[int],
+                 end: List[int],
+                 i2b2_mapping: List[str],
+                 coref_spans: Set[TypedSpan]):
+
+        self.sent_ids = sent_ids
+        self.words = words
+        self.begin = begin
+        self.end = end
+        self.i2b2_mapping = i2b2_mapping
+        self.coref_spans = coref_spans
