@@ -400,7 +400,6 @@ class CoNLLFile:
                         conll_rows = list()
 
                 if line.startswith("#end document"):
-                    # document.sentences.append(self._conll_rows_to_sentence(conll_rows))
                     all_documents[document_id] = document
                     document_id = str()
                     document = None
@@ -555,16 +554,6 @@ class Document:
                 ))
 
         return all_concepts
-
-    # def get_document_concepts(self):
-    #
-    #     all_concepts = list()
-    #
-    #     for sentence in self.sentences:
-    #         for chain_id, (begin, end) in sentence.coref_spans:
-    #             all_concepts.append((begin, end))
-    #
-    #     return all_concepts
 
     def get_document_chains_i2b2_format(self):
         """
