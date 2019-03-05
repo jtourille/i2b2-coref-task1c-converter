@@ -153,3 +153,22 @@ $ python endToEndCoreferenceEvaluation.py \
   .
 ```
 
+### Single run conversion
+
+It is possible to convert one single run from i2b2 to CoNLL format.
+
+```bash
+$ python main.py RUN-TO-CONLL \
+    --input-dir /path/to/run \
+    --output-dir /path/to/output-dir \
+    --gs-conll-dir /path/to/data-preparation/conll/task1c/test/ \
+    --mapping-file ./char_mapping.json \
+    [--overwrite]
+```
+
+Run directory must be composed of two directories `BETH` and `PARTNERS`. Within these directories, three subdirectories 
+must be created: 
+
+* `chains`: contains system output
+* `concepts`: contains gold standard concept annotations
+* `docs`: contains gold standard text files 
