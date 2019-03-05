@@ -1,10 +1,15 @@
 # I2B2 2011 Task1c Converter
 
-This repository contains the tools used to transform the i2b2 coreference corpus (task1c) from i2b2 to CoNLL format.
+This repository contains the tools that can be used to convert the i2b2/VA corpus on coreference from i2b2 to CoNLL 
+format. The conversion concerns only the documents provided by Beth Israel Deaconess Medical Center (BETH) and Partners 
+Healthcare (PARTNERS). Documents from University of Pittsburgh Medical Center (UPMC) are discarded.
+
+The conversion process is divided in several steps described below.
 
 ## 1. Data Extraction
 
-In the first preprocessing step, original data will be extracted, renamed, corrected and sorted.
+In this first preprocessing step, original data will be extracted, renamed, corrected (if necessary) and sorted. The 
+corrections concern two documents: `clinical-32` and `clinical-52`.
  
 * Create a directory that contains source compressed files.
 
@@ -16,7 +21,8 @@ source
 └── Test-ground-truth-Beth-Partners_111004.tar.gz
 ```
 
-* Launch the following command to extract, rename, correct and sort data.
+* Launch the following command to extract, rename, correct and sort data. A directory structure will be created under 
+`/path/to/data-preparation`.
 
 ```bash
 $ python main.py PREPARE-DATA \
@@ -28,7 +34,12 @@ $ python main.py PREPARE-DATA \
 
 ## 2. Brat version creation
 
-Creation of a brat version of the corpus.
+The conversion process rely on the brat data structure as intermediary format. In this step, we generate a brat 
+version of the corpus. As an added bonus, this allows for better data visualization as both i2b2 and CoNLL formats are 
+not convenient for this task.
+
+Hard sentence breaks that occurred within mentions will be replaced by empty spaces during this step. This allows to 
+keep the offset integrity intact while facilitating both the conversion and the visualization.
 
 ```bash
 $ python main.py CREATE-BRAT \
@@ -39,7 +50,8 @@ $ python main.py CREATE-BRAT \
 
 ## 3. CoNLL files creation
 
-Creation of a CoNLL version of the corpus.
+This is the final step of the process. We create a CoNLL version of the corpus. Offset mapping between i2b2 and CoNLL 
+are stored within the documents.
 
 ```bash
 $ python main.py CREATE-CONLL \
