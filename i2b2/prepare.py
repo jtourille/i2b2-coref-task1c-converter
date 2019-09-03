@@ -111,19 +111,19 @@ def copy_con_files(input_dir: str, output_dir: str, ann_corrections: dict) -> No
     for filename in os.listdir(input_dir):
         source_filepath = os.path.join(input_dir, filename)
 
-        if re.match("^.*\.txt\.concept$", filename):
+        if re.match(r"^.*\.txt\.concept$", filename):
             doc_id = filename.split(".")[0]
             target_filepath = "{}.con".format(os.path.join(output_dir, doc_id))
 
-        elif re.match("^.*\.concept$", filename):
+        elif re.match(r"^.*\.concept$", filename):
             doc_id = filename.split(".")[0]
             target_filepath = "{}.con".format(os.path.join(output_dir, doc_id))
 
-        elif re.match("^.*\.txt\.con$", filename):
+        elif re.match(r"^.*\.txt\.con$", filename):
             doc_id = filename.split(".")[0]
             target_filepath = "{}.con".format(os.path.join(output_dir, doc_id))
 
-        elif re.match("^.*\.con$", filename):
+        elif re.match(r"^.*\.con$", filename):
             doc_id = filename.split(".")[0]
             target_filepath = "{}.con".format(os.path.join(output_dir, doc_id))
 
@@ -156,7 +156,7 @@ def copy_doc_files(input_dir: str, output_dir: str) -> None:
     for filename in os.listdir(input_dir):
         source_filepath = os.path.join(input_dir, filename)
 
-        if re.match("^.*\.txt$", filename):
+        if re.match(r"^.*\.txt$", filename):
             target_filepath = os.path.join(output_dir, filename)
         else:
             target_filepath = "{}.txt".format(os.path.join(output_dir, filename))
@@ -177,7 +177,7 @@ def copy_pair_files(input_dir: str, output_dir: str) -> None:
     for filename in os.listdir(input_dir):
         source_filepath = os.path.join(input_dir, filename)
 
-        if re.match("^.*\.txt\.pairs$", filename):
+        if re.match(r"^.*\.txt\.pairs$", filename):
             doc_id = filename.split(".")
             target_filepath = "{}.pairs".format(os.path.join(output_dir, doc_id[0]))
 
@@ -207,13 +207,13 @@ def flatten(input_dir: str, output_dir: str) -> None:
 
     for root, dirs, files in os.walk(os.path.abspath(input_dir)):
         for filename in files:
-            if re.match("^.*\.chains$", filename):
+            if re.match(r"^.*\.chains$", filename):
                 shutil.copy(os.path.join(root, filename), chain_dir)
 
-            elif re.match("^.*\.con", filename):
+            elif re.match(r"^.*\.con", filename):
                 shutil.copy(os.path.join(root, filename), concept_dir)
 
-            elif re.match("^.*\.txt", filename):
+            elif re.match(r"^.*\.txt", filename):
                 shutil.copy(os.path.join(root, filename), doc_dir)
 
 
