@@ -4,19 +4,19 @@ from collections import defaultdict
 from typing import DefaultDict, List, Set, Tuple
 
 import networkx as nx
+from sklearn.model_selection import train_test_split
 
 from .utils.brat import parse_ann_file
 from .utils.path import ensure_dir, remove_abs, get_other_extension
 from .utils.span import overlap
 
 
-def create_conll_files(brat_dir: str, gs_dir: str, output_dir: str) -> None:
+def create_conll_files(brat_dir: str, output_dir: str) -> None:
     """
     Create CoNLL-formatted files
 
     Args:
         brat_dir (str): directory where brat files are stored
-        gs_dir (str): directory where gold-standard files are stored
         output_dir (str): directory where CoNLL files will be stored
 
     Returns:
@@ -25,7 +25,6 @@ def create_conll_files(brat_dir: str, gs_dir: str, output_dir: str) -> None:
 
     # Setting up paths
     task1c_input_brat_dir = os.path.join(os.path.abspath(brat_dir), "task1c")
-    task1c_input_gs_dir = os.path.join(os.path.abspath(gs_dir), "task1c")
     task1c_output_dir = os.path.join(os.path.abspath(output_dir), "task1c")
 
     ensure_dir(task1c_output_dir)
@@ -33,37 +32,66 @@ def create_conll_files(brat_dir: str, gs_dir: str, output_dir: str) -> None:
     # CoNLL file creation for task1c
     conll_files_task1c(
         brat_dir=task1c_input_brat_dir,
-        gs_dir=task1c_input_gs_dir,
         output_dir=task1c_output_dir
     )
 
     for dirname in os.listdir(task1c_output_dir):
-        target_conll_file = os.path.join(task1c_output_dir, "{}.conll".format(dirname))
+        if dirname == "train":
+            target_conll_file_train = os.path.join(task1c_output_dir, "train.conll")
+            target_conll_file_dev = os.path.join(task1c_output_dir, "dev.conll")
 
-        with open(target_conll_file, "w", encoding="UTF-8") as output_file:
+            all_files = list()
+
             for root, dirs, files in os.walk(os.path.join(task1c_output_dir, dirname)):
                 for filename in files:
-                    if re.match("^.*\.conll$", filename):
-                        with open(os.path.join(root, filename), "r", encoding="UTF-8") as input_file:
-                            for line in input_file:
-                                output_file.write(line)
+                    if re.match(r"^.*\.conll$", filename):
+                        all_files.append(os.path.join(root, filename))
+
+            train_files, dev_files = train_test_split(all_files, random_state=42, test_size=0.2)
+
+            with open(target_conll_file_train, "w", encoding="UTF-8") as output_file:
+                for filename in train_files:
+                    with open(filename, "r", encoding="UTF-8") as input_file:
+                        for line in input_file:
+                            output_file.write(line)
+
+            with open(target_conll_file_dev, "w", encoding="UTF-8") as output_file:
+                for filename in dev_files:
+                    with open(filename, "r", encoding="UTF-8") as input_file:
+                        for line in input_file:
+                            output_file.write(line)
+
+        elif dirname == "test":
+            target_conll_file = os.path.join(task1c_output_dir, "{}.conll".format(dirname))
+            with open(target_conll_file, "w", encoding="UTF-8") as output_file:
+                for root, dirs, files in os.walk(os.path.join(task1c_output_dir, dirname)):
+                    for filename in files:
+                        if re.match(r"^.*\.conll$", filename):
+                            with open(os.path.join(root, filename), "r", encoding="UTF-8") as input_file:
+                                for line in input_file:
+                                    output_file.write(line)
+
+        else:
+            raise Exception
 
 
-def conll_files_task1c(brat_dir: str, gs_dir: str, output_dir: str) -> None:
+def conll_files_task1c(brat_dir: str = None,
+                       output_dir: str = None) -> None:
     """
     Create CoNLL-formatted files for task 1C
 
     Args:
         brat_dir (str): directory where brat files are stored
-        gs_dir (str): directory where gold-standard files are stored
         output_dir (str): directory where CoNLL files will be stored
 
     Returns:
         None
     """
+
     for root, dirs, files in os.walk(os.path.abspath(brat_dir)):
         for filename in files:
-            if re.match("^.*\.ann$", filename):
+            if re.match(r"^.*\.ann$", filename):
+
                 subdir = remove_abs(re.sub(re.escape(os.path.abspath(brat_dir)), "", root))
 
                 # Setting up source paths
@@ -122,6 +150,9 @@ def conll_files_task1c(brat_dir: str, gs_dir: str, output_dir: str) -> None:
                 # Extracting entities, relations
                 entities, relations = parse_ann_file(source_ann_filepath)
                 extracted_chains = extract_chains_with_networkx(relations)
+                singletons = extract_singletons(entities, relations)
+
+                extracted_chains = list(extracted_chains) + list([[item] for item in singletons])
 
                 # Setting up tokens labels
                 chain_id = 0
@@ -154,11 +185,14 @@ def conll_files_task1c(brat_dir: str, gs_dir: str, output_dir: str) -> None:
 
                 # Writing conll file to disk
                 with open(target_conll_file, "w", encoding="UTF-8") as output_file:
-                    output_file.write("#begin document ({});\n".format(".".join(filename.split(".")[:-1])))
+                    output_file.write("#begin document {};\n".format(".".join(filename.split(".")[:-1])))
 
                     for i, sentence in enumerate(sentences, start=1):
-                        for token in sentence["tokens"]:
+                        # Skipping zero-length sentences
+                        if len(sentence["tokens"]) == 0:
+                            continue
 
+                        for j, token in enumerate(sentence["tokens"]):
                             start_str = "|".join(["({}".format(item) for item in token["conll_begin"]])
                             uniq_str = "".join(["({})".format(item) for item in token["conll_unique"]])
                             end_str = "|".join(["{})".format(item) for item in token["conll_end"]])
@@ -187,14 +221,15 @@ def conll_files_task1c(brat_dir: str, gs_dir: str, output_dir: str) -> None:
                             else:
                                 final_str = "-"
 
-                            output_file.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(
-                                i,
-                                token["text"],
-                                token["begin"],
-                                token["end"],
-                                "|".join(["{}:{}".format(l, i) for l, i in token["gs_tokens"]]),
-                                final_str
-                            ))
+                            payload = list()
+                            payload.append(i)
+                            payload.append(token["text"])
+                            payload.append(token["begin"])
+                            payload.append(token["end"])
+                            payload.append("|".join(["{}:{}".format(l, i) for l, i in token["gs_tokens"]]))
+                            payload.append(final_str)
+
+                            output_file.write("{}\n".format("\t".join([str(item) for item in payload])))
 
                         if i != len(sentences):
                             output_file.write("\n")
@@ -220,7 +255,7 @@ def get_splits(doc_filepath: str) -> dict:
 
     with open(doc_filepath, "r", encoding="UTF-8") as input_file:
         for i, line in enumerate(input_file, start=1):
-            chunks = re.split("[\s]", line.rstrip("\n"))
+            chunks = re.split(r"[\s]", line.rstrip("\n"))
             current_ret = list()
 
             for j, chunk in enumerate(chunks):
@@ -293,6 +328,23 @@ def extract_chains_with_networkx(relations: dict) -> set:
     return connected_components
 
 
+def extract_singletons(entities: dict, relations: dict) -> set:
+
+    entities_in_chains = set()
+
+    for rel_id, rel_pl in relations.items():
+        entities_in_chains.add(rel_pl["arg1"])
+        entities_in_chains.add(rel_pl["arg2"])
+
+    singletons = set()
+
+    for ent_id in entities:
+        if ent_id not in entities_in_chains:
+            singletons.add(ent_id)
+
+    return singletons
+
+
 def conll_to_i2b2(input_conll_dir, output_i2b2_dir):
     """
     Convert a set of CoNLL document into i2b2 format.
@@ -306,7 +358,7 @@ def conll_to_i2b2(input_conll_dir, output_i2b2_dir):
 
     for root, dirs, files in os.walk(os.path.abspath(input_conll_dir)):
         for filename in files:
-            if re.match("^.*\.conll$", filename):
+            if re.match(r"^.*\.conll$", filename):
                 source_conll_file = os.path.join(root, filename)
 
                 conll_file = CoNLLFile(conll_file_path=source_conll_file)
@@ -386,7 +438,7 @@ class CoNLLFile:
                 line = line.strip()
 
                 if line.startswith('#begin document'):
-                    match = re.match('#begin document \((.*)\);', line)
+                    match = re.match('#begin document (.*);', line)
                     document_id = match.group(1)
                     document = Document(document_id)
 
