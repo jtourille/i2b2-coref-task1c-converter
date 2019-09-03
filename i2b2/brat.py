@@ -57,7 +57,7 @@ def get_splits(doc_filepath: str) -> dict:
 
     with open(doc_filepath, "r", encoding="UTF-8") as input_file:
         for i, line in enumerate(input_file, start=1):
-            chunks = re.split("[\s]", line.rstrip("\n"))
+            chunks = re.split(r"[\s]", line.rstrip("\n"))
             current_ret = list()
 
             for j, chunk in enumerate(chunks):
@@ -95,7 +95,7 @@ def i2b2_to_brat(input_dir: str, output_dir: str, char_mapping: dict) -> None:
     """
 
     # Matching regex for concept
-    regex_concept = re.compile('^c="(.*)" (\d+):(\d+) (\d+):(\d+)\|\|t="(.*)"$')
+    regex_concept = re.compile(r'^c="(.*)" (\d+):(\d+) (\d+):(\d+)\|\|t="(.*)"$')
 
     for dirname in os.listdir(input_dir):
         # Computing current output_dir for current processed dir
@@ -154,9 +154,9 @@ def i2b2_to_brat(input_dir: str, output_dir: str, char_mapping: dict) -> None:
 
                         # Extracting chain type
                         type_chain_str = concepts[-1]
-                        type_chain = re.match("t=\"coref\s(.*)\"", type_chain_str).group(1)
+                        type_chain = re.match(r"t=\"coref\s(.*)\"", type_chain_str).group(1)
 
-                        regex_mention = re.compile("c=\"(.*)\" (\d+):(\d+) (\d+):(\d+)")
+                        regex_mention = re.compile(r"c=\"(.*)\" (\d+):(\d+) (\d+):(\d+)")
 
                         # Creating mention pairs by going over concept ngrams
                         for mention_1_str, mention_2_str in find_ngrams(concepts[:-1], 2):
